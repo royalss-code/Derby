@@ -4,5 +4,4 @@ pandas
 scikit-learn
 xgboost
 gunicorn
-pybaseball
 requests
