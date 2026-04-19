@@ -10,6 +10,7 @@ y = df["home_run"]
 model = XGBClassifier()
 model.fit(X, y)
 
-pickle.dump(model, open("model.pkl", "wb"))
+with open("model.pkl", "wb") as f:
+    pickle.dump(model, f)
 
-print("Model saved!")
+print("Model saved correctly")
