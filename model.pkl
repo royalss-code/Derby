@@ -1,0 +1,15 @@
+import pandas as pd
+from xgboost import XGBClassifier
+import pickle
+
+df = pd.read_csv("data.csv")
+
+X = df.drop("home_run", axis=1)
+y = df["home_run"]
+
+model = XGBClassifier()
+model.fit(X, y)
+
+pickle.dump(model, open("model.pkl", "wb"))
+
+print("Model saved!")
