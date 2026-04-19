@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 
 # Load trained model
-model = pickle.load(open("model.pkl", "rb"))
+model = pickle.load(open(os.path.join(os.path.dirname(__file__), "model.pkl"), "rb"))
 
 @app.route("/", methods=["GET", "POST"])
 def home():
