@@ -3,37 +3,53 @@
 <head>
     <title>MLB HR Predictor</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 40px; }
-        input { margin: 8px; padding: 8px; width: 240px; }
+        body { font-family: Arial, sans-serif; text-align: center; margin: 40px; }
+        select, input { margin: 8px; padding: 8px; width: 260px; }
         button { padding: 10px 20px; margin-top: 10px; }
         .result { margin-top: 20px; font-size: 22px; font-weight: bold; }
         .error { margin-top: 20px; color: red; font-weight: bold; }
+        .games { margin-bottom: 30px; }
     </style>
 </head>
 <body>
     <h1>MLB Home Run Predictor</h1>
-<h2>Today's Games</h2>
-{% if games %}
-    <div style="margin-bottom: 25px;">
-        {% for game in games %}
-            <div>{{ game.label }}</div>
-        {% endfor %}
-    </div>
-{% else %}
-    <div style="margin-bottom: 25px;">Could not load today's games.</div>
-{% endif %}
+
+    <h2>Today's Games</h2>
+    {% if games %}
+        <div class="games">
+            {% for game in games %}
+                <div>{{ game.label }}</div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="games">Could not load today's games.</div>
+    {% endif %}
+
     <form method="POST">
         <div>
-            <input name="player_name" placeholder="Player name (e.g. Aaron Judge)" required>
+            <select name="player_name" required>
+                <option value="">Select hitter</option>
+                {% for player in players %}
+                    <option value="{{ player }}" {% if player == selected_player %}selected{% endif %}>{{ player }}</option>
+                {% endfor %}
+            </select>
         </div>
+
         <div>
-            <input name="pitcher_name" placeholder="Pitcher name (e.g. Gerrit Cole)" required>
+            <select name="pitcher_name" required>
+                <option value="">Select pitcher</option>
+                {% for pitcher in pitchers %}
+                    <option value="{{ pitcher }}" {% if pitcher == selected_pitcher %}selected{% endif %}>{{ pitcher }}</option>
+                {% endfor %}
+            </select>
         </div>
+
         <div>
-            <input name="matchup" placeholder="Matchup advantage (0 or 1)" required>
+            <input name="matchup" placeholder="Matchup advantage (0 or 1)" value="{{ selected_matchup }}" required>
         </div>
+
         <div>
-            <input name="park_factor" placeholder="Park factor (e.g. 1.05)" required>
+            <input name="park_factor" placeholder="Park factor (e.g. 1.05)" value="{{ selected_park_factor }}" required>
         </div>
 
         <button type="submit">Predict</button>
