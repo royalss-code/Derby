@@ -1,5 +1,6 @@
 flask
-pandas
 numpy
+pandas
 scikit-learn
 xgboost
+gunicorn
