@@ -12,7 +12,16 @@
 </head>
 <body>
     <h1>MLB Home Run Predictor</h1>
-
+<h2>Today's Games</h2>
+{% if games %}
+    <div style="margin-bottom: 25px;">
+        {% for game in games %}
+            <div>{{ game.label }}</div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div style="margin-bottom: 25px;">Could not load today's games.</div>
+{% endif %}
     <form method="POST">
         <div>
             <input name="player_name" placeholder="Player name (e.g. Aaron Judge)" required>
