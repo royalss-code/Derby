@@ -26,9 +26,9 @@ def home():
             pitcher_stats = get_pitcher_stats(pitcher_name)
 
             if not player_stats:
-                error = f"Player '{player_name}' not found."
+                error = f"Player '{player_name}' not found in player_stats.csv."
             elif not pitcher_stats:
-                error = f"Pitcher '{pitcher_name}' not found."
+                error = f"Pitcher '{pitcher_name}' not found in pitcher_stats.csv."
             else:
                 features = [[
                     player_stats["player_hr_rate"],
