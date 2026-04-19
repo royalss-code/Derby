@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MLB HR Predictor</title>
+</head>
+<body>
+    <h1>Home Run Probability Model</h1>
+
+    <form method="POST">
+
+        <label>Player HR Rate</label><br>
+        <input name="player_hr_rate"><br><br>
+
+        <label>Barrel Rate</label><br>
+        <input name="barrel_rate"><br><br>
+
+        <label>Pitcher HR/9</label><br>
+        <input name="pitcher_hr9"><br><br>
+
+        <label>Fly Ball Rate</label><br>
+        <input name="flyball_rate"><br><br>
+
+        <label>Matchup Advantage (1 or 0)</label><br>
+        <input name="matchup"><br><br>
+
+        <label>Park Factor</label><br>
+        <input name="park_factor"><br><br>
+
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if prediction %}
+        <h2>HR Probability: {{ prediction }}</h2>
+    {% endif %}
+
+</body>
+</html>
