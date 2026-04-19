@@ -2,6 +2,7 @@ from flask import Flask, render_template, request
 import pickle
 import os
 from mlb_data import get_player_stats, get_pitcher_stats
+from today_games import get_today_games
 
 app = Flask(__name__)
 
@@ -14,6 +15,12 @@ with open(MODEL_PATH, "rb") as f:
 def home():
     prediction = None
     error = None
+    games = []
+
+    try:
+        games = get_today_games()
+    except Exception:
+        games = []
 
     if request.method == "POST":
         try:
@@ -45,7 +52,7 @@ def home():
         except Exception as e:
             error = f"Error: {str(e)}"
 
-    return render_template("index.html", prediction=prediction, error=error)
+    return render_template("index.html", prediction=prediction, error=error, games=games)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
