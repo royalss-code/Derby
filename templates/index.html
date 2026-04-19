@@ -2,34 +2,40 @@
 <html>
 <head>
     <title>MLB HR Predictor</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 40px; }
+        input { margin: 8px; padding: 8px; width: 220px; }
+        button { padding: 10px 20px; margin-top: 10px; }
+        .result { margin-top: 20px; font-size: 22px; font-weight: bold; }
+        .error { margin-top: 20px; color: red; font-weight: bold; }
+    </style>
 </head>
 <body>
-    <h1>Home Run Probability Model</h1>
+    <h1>MLB Home Run Predictor</h1>
 
     <form method="POST">
-        <label>Player HR Rate</label><br>
-        <input name="player_hr_rate"><br><br>
-
-        <label>Barrel Rate</label><br>
-        <input name="barrel_rate"><br><br>
-
-        <label>Pitcher HR/9</label><br>
-        <input name="pitcher_hr9"><br><br>
-
-        <label>Fly Ball Rate</label><br>
-        <input name="flyball_rate"><br><br>
-
-        <label>Matchup Advantage (1 or 0)</label><br>
-        <input name="matchup"><br><br>
-
-        <label>Park Factor</label><br>
-        <input name="park_factor"><br><br>
+        <div>
+            <input name="player_name" placeholder="Player name (e.g. Aaron Judge)" required>
+        </div>
+        <div>
+            <input name="pitcher_name" placeholder="Pitcher name (e.g. Gerrit Cole)" required>
+        </div>
+        <div>
+            <input name="matchup" placeholder="Matchup advantage (0 or 1)" required>
+        </div>
+        <div>
+            <input name="park_factor" placeholder="Park factor (e.g. 1.05)" required>
+        </div>
 
         <button type="submit">Predict</button>
     </form>
 
     {% if prediction %}
-        <h2>HR Probability: {{ prediction }}</h2>
+        <div class="result">HR Probability: {{ prediction }}</div>
+    {% endif %}
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
     {% endif %}
 </body>
 </html>
