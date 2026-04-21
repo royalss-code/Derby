@@ -16,7 +16,6 @@ def calc_barrel_like_rate(df):
         return 0.0
 
     batted = df[df["launch_speed"].notna() & df["launch_angle"].notna()].copy()
-
     if batted.empty:
         return 0.0
 
@@ -41,23 +40,75 @@ def calc_hr_rate_per_pa(df):
     if df.empty or "events" not in df.columns:
         return 0.0
 
-    # Plate-appearance-ending events
     pa_events = {
-        "single", "double", "triple", "home_run",
-        "walk", "intent_walk", "strikeout", "strikeout_double_play",
-        "hit_by_pitch", "field_out", "grounded_into_double_play",
-        "force_out", "field_error", "double_play", "triple_play",
-        "fielders_choice", "fielders_choice_out", "sac_fly",
-        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play",
-        "catcher_interf"
+        "single", "double", "triple", "home_run", "walk", "intent_walk",
+        "strikeout", "strikeout_double_play", "hit_by_pitch", "field_out",
+        "grounded_into_double_play", "force_out", "field_error", "double_play",
+        "triple_play", "fielders_choice", "fielders_choice_out", "sac_fly",
+        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"
     }
 
-    pa_df = df[df["events"].isin(pa_events)].copy()
-
+    pa_df = df[df["events"].isin(pa_events)]
     if pa_df.empty:
         return 0.0
 
     return float((pa_df["events"] == "home_run").mean())
+
+
+def calc_split_stats(df):
+    if df.empty:
+        return {
+            "hr_vs_R": 0.0,
+            "hr_vs_L": 0.0,
+            "barrel_vs_R": 0.0,
+            "barrel_vs_L": 0.0
+        }
+
+    pa_events = {
+        "single", "double", "triple", "home_run", "walk", "intent_walk",
+        "strikeout", "strikeout_double_play", "hit_by_pitch", "field_out",
+        "grounded_into_double_play", "force_out", "field_error", "double_play",
+        "triple_play", "fielders_choice", "fielders_choice_out", "sac_fly",
+        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"
+    }
+
+    def calc_side(side):
+        vs = df[df["p_throws"] == side]
+
+        pa = vs[vs["events"].isin(pa_events)]
+        batted_vs = vs[vs["launch_speed"].notna() & vs["launch_angle"].notna()]
+
+        hr_rate = (pa["events"] == "home_run").mean() if not pa.empty else 0.0
+
+        if not batted_vs.empty:
+            ev = pd.to_numeric(batted_vs["launch_speed"], errors="coerce")
+            la = pd.to_numeric(batted_vs["launch_angle"], errors="coerce")
+
+            barrel = (
+                ((ev >= 98) & la.between(26, 30, inclusive="both")) |
+                ((ev >= 99) & la.between(25, 31, inclusive="both")) |
+                ((ev >= 100) & la.between(24, 33, inclusive="both")) |
+                ((ev >= 101) & la.between(23, 34, inclusive="both")) |
+                ((ev >= 102) & la.between(22, 35, inclusive="both")) |
+                ((ev >= 103) & la.between(21, 36, inclusive="both")) |
+                ((ev >= 104) & la.between(20, 37, inclusive="both")) |
+                ((ev >= 105) & la.between(19, 38, inclusive="both"))
+            )
+            barrel_rate = barrel.mean()
+        else:
+            barrel_rate = 0.0
+
+        return hr_rate, barrel_rate
+
+    hr_R, barrel_R = calc_side("R")
+    hr_L, barrel_L = calc_side("L")
+
+    return {
+        "hr_vs_R": hr_R,
+        "hr_vs_L": hr_L,
+        "barrel_vs_R": barrel_R,
+        "barrel_vs_L": barrel_L
+    }
 
 
 def build_player_stats():
@@ -78,6 +129,10 @@ def build_player_stats():
                     "name": name,
                     "player_hr_rate": 0.0,
                     "barrel_rate": 0.0,
+                    "hr_vs_R": 0.0,
+                    "hr_vs_L": 0.0,
+                    "barrel_vs_R": 0.0,
+                    "barrel_vs_L": 0.0,
                     "stand": stand,
                     "team": team
                 })
@@ -85,11 +140,16 @@ def build_player_stats():
 
             hr_rate = calc_hr_rate_per_pa(df)
             barrel_rate = calc_barrel_like_rate(df)
+            splits = calc_split_stats(df)
 
             rows.append({
                 "name": name,
                 "player_hr_rate": round(hr_rate, 4),
                 "barrel_rate": round(barrel_rate, 4),
+                "hr_vs_R": round(splits["hr_vs_R"], 4),
+                "hr_vs_L": round(splits["hr_vs_L"], 4),
+                "barrel_vs_R": round(splits["barrel_vs_R"], 4),
+                "barrel_vs_L": round(splits["barrel_vs_L"], 4),
                 "stand": stand,
                 "team": team
             })
@@ -100,6 +160,10 @@ def build_player_stats():
                 "name": name,
                 "player_hr_rate": 0.0,
                 "barrel_rate": 0.0,
+                "hr_vs_R": 0.0,
+                "hr_vs_L": 0.0,
+                "barrel_vs_R": 0.0,
+                "barrel_vs_L": 0.0,
                 "stand": stand,
                 "team": team
             })
@@ -128,15 +192,12 @@ def build_pitcher_stats():
                 })
                 continue
 
-            # Better denominator for pitchers too: PA-ending events
             pa_events = {
-                "single", "double", "triple", "home_run",
-                "walk", "intent_walk", "strikeout", "strikeout_double_play",
-                "hit_by_pitch", "field_out", "grounded_into_double_play",
-                "force_out", "field_error", "double_play", "triple_play",
-                "fielders_choice", "fielders_choice_out", "sac_fly",
-                "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play",
-                "catcher_interf"
+                "single", "double", "triple", "home_run", "walk", "intent_walk",
+                "strikeout", "strikeout_double_play", "hit_by_pitch", "field_out",
+                "grounded_into_double_play", "force_out", "field_error", "double_play",
+                "triple_play", "fielders_choice", "fielders_choice_out", "sac_fly",
+                "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"
             }
 
             pa_df = df[df["events"].isin(pa_events)].copy()
