@@ -159,7 +159,7 @@ def home():
             home_park_factor = PARK_FACTOR_MAP.get(game["home_team"], 1.00)
 
             if game["home_pitcher"] != "TBD":
-                away_hitters = get_team_roster(game["away_team"])[:12]
+                away_hitters = get_team_roster(game["away_team"])[:8]
                 for hitter in away_hitters:
                     try:
                         player_stats = get_player_stats(hitter)
@@ -192,7 +192,7 @@ def home():
                         continue
 
             if game["away_pitcher"] != "TBD":
-                home_hitters = get_team_roster(game["home_team"])[:12]
+                home_hitters = get_team_roster(game["home_team"])[:8]
                 for hitter in home_hitters:
                     try:
                         player_stats = get_player_stats(hitter)
@@ -224,7 +224,7 @@ def home():
                     except Exception:
                         continue
 
-        rankings = sorted(rankings, key=lambda x: x["probability"], reverse=True)[:25]
+        rankings = sorted(rankings, key=lambda x: x["probability"], reverse=True)[:15]
 
     except Exception as e:
         if not error:
