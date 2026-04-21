@@ -5,3 +5,5 @@ scikit-learn
 xgboost
 gunicorn
 requests
+pybaseball
+tqdm
