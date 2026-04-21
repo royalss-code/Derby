@@ -1,0 +1,101 @@
+name,player_hr_rate,barrel_rate,stand
+Aaron Judge,0.0226,0.0113,R
+Shohei Ohtani,0.0126,0.0176,L
+Juan Soto,0.0064,0.0064,L
+Kyle Schwarber,0.0197,0.0123,L
+Bryce Harper,0.012,0.0,L
+Mookie Betts,0.0132,0.0,R
+Matt Olson,0.0146,0.0167,L
+Pete Alonso,0.0045,0.0068,R
+Yordan Alvarez,0.0238,0.0119,L
+Fernando Tatis Jr.,0.0,0.0082,R
+Ronald Acuna Jr.,0.0024,0.0024,R
+Freddie Freeman,0.0078,0.0129,L
+Corey Seager,0.0136,0.0136,L
+Gunnar Henderson,0.0164,0.0041,L
+Bobby Witt Jr.,0.0,0.0077,R
+Julio Rodriguez,0.0023,0.0069,R
+Vladimir Guerrero Jr.,0.0056,0.0028,R
+Austin Riley,0.0095,0.0118,R
+Rafael Devers,0.0051,0.0051,L
+Jose Ramirez,0.0151,0.0129,S
+Francisco Lindor,0.0022,0.0,S
+Adolis Garcia,0.0052,0.0,R
+Marcus Semien,0.0031,0.0031,R
+Ketel Marte,0.0113,0.0056,S
+Christian Walker,0.0131,0.0131,R
+Elly De La Cruz,0.0155,0.0066,S
+Cody Bellinger,0.0082,0.0054,L
+Jazz Chisholm Jr.,0.0,0.0026,L
+Byron Buxton,0.0145,0.0174,R
+Corbin Carroll,0.0089,0.0,L
+Anthony Santander,0.0,0.0,S
+Teoscar Hernandez,0.0179,0.0149,R
+J.D. Martinez,0.0,0.0,R
+Michael Harris II,0.0134,0.0067,L
+Seiya Suzuki,0.0,0.0059,R
+Ian Happ,0.0182,0.0104,S
+Nolan Arenado,0.0127,0.0,R
+Paul Goldschmidt,0.0068,0.0068,R
+Nolan Gorman,0.0088,0.0,L
+Willson Contreras,0.0104,0.0052,R
+Jordan Walker,0.0253,0.0169,R
+Spencer Steer,0.0095,0.0095,R
+TJ Friedl,0.0,0.0,L
+Christian Yelich,0.0036,0.0,L
+Willy Adames,0.0074,0.0099,R
+William Contreras,0.0112,0.0028,R
+Jackson Chourio,0.0333,0.0,R
+Bryan Reynolds,0.007,0.0023,S
+Ke'Bryan Hayes,0.0,0.0,R
+O'Neil Cruz,0.0165,0.0047,L
+Joey Meneses,0.0,0.1429,R
+CJ Abrams,0.017,0.0113,L
+Lane Thomas,0.0,0.0,R
+Luis Robert Jr.,0.0056,0.0028,R
+Eloy Jimenez,0.0,0.0128,R
+Andrew Vaughn,0.0244,0.0488,R
+Andrew Benintendi,0.0036,0.0036,L
+Bo Bichette,0.0026,0.0,R
+George Springer,0.0105,0.007,R
+Daulton Varsho,0.0108,0.0036,L
+Spencer Torkelson,0.0,0.005,R
+Riley Greene,0.0023,0.0047,L
+Kerry Carpenter,0.0132,0.0099,L
+Salvador Perez,0.0114,0.0085,R
+Vinnie Pasquantino,0.0051,0.0051,L
+Maikel Garcia,0.005,0.005,R
+Yainer Diaz,0.0044,0.0044,R
+Kyle Tucker,0.0075,0.0,L
+Jose Altuve,0.0081,0.0081,R
+Jeremy Pena,0.0,0.0,R
+Alex Bregman,0.0117,0.007,R
+Josh Naylor,0.0067,0.0133,L
+Steven Kwan,0.0023,0.0047,L
+Andres Gimenez,0.009,0.0,L
+Logan O'Hoppe,0.0031,0.0062,R
+Mike Trout,0.0145,0.0062,R
+Taylor Ward,0.0023,0.0023,R
+Brent Rooker,0.0163,0.0054,R
+JJ Bleday,0.0,0.0,L
+Luis Arraez,0.0,0.0,L
+Jake Burger,0.014,0.0028,R
+Xander Bogaerts,0.0088,0.0059,R
+Manny Machado,0.0051,0.0051,R
+Jackson Merrill,0.0079,0.0053,L
+Luis Campusano,0.0069,0.0,R
+Jurickson Profar,0.0,0.0,S
+Luis Rengifo,0.0,0.0039,S
+Isaac Paredes,0.0,0.0,R
+Jonathan India,0.0079,0.0079,R
+Alec Bohm,0.0032,0.0,R
+Bryson Stott,0.0,0.0075,L
+Trea Turner,0.0052,0.0052,R
+Max Kepler,0.0,0.0,L
+Carlos Correa,0.0027,0.0055,R
+Royce Lewis,0.0089,0.0134,R
+Matt Chapman,0.0028,0.0028,R
+Heliot Ramos,0.0055,0.0055,R
+Jung Hoo Lee,0.0056,0.0,L
+Anthony Volpe,0.0,0.0,R
+Giancarlo Stanton,0.0058,0.0029,R
