@@ -12,5 +12,9 @@ Then push player_stats.csv and pitcher_stats.csv into GitHub Repo
  python build_real_dataset.py
  python train_model.py
  python test_model.py
+
+ For running the app locally
+
+ python app.py
  
 
