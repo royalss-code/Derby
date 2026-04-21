@@ -15,7 +15,8 @@ def get_player_stats(player_name):
     return {
         "player_hr_rate": float(row["player_hr_rate"]),
         "barrel_rate": float(row["barrel_rate"]),
-        "stand": str(row["stand"]).strip().upper() if "stand" in row else "R"
+        "stand": str(row["stand"]).strip().upper() if "stand" in row else "R",
+        "team": str(row["team"]).strip() if "team" in row else ""
     }
 
 def get_pitcher_stats(pitcher_name):

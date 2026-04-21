@@ -15,15 +15,49 @@ def calc_barrel_like_rate(df):
     if df.empty:
         return 0.0
 
-    launch_speed = pd.to_numeric(df.get("launch_speed"), errors="coerce")
-    launch_angle = pd.to_numeric(df.get("launch_angle"), errors="coerce")
+    batted = df[df["launch_speed"].notna() & df["launch_angle"].notna()].copy()
+
+    if batted.empty:
+        return 0.0
+
+    ev = pd.to_numeric(batted["launch_speed"], errors="coerce")
+    la = pd.to_numeric(batted["launch_angle"], errors="coerce")
 
     barrel_like = (
-        (launch_speed >= 98) &
-        (launch_angle.between(26, 30, inclusive="both"))
-    ).fillna(False)
+        ((ev >= 98) & la.between(26, 30, inclusive="both")) |
+        ((ev >= 99) & la.between(25, 31, inclusive="both")) |
+        ((ev >= 100) & la.between(24, 33, inclusive="both")) |
+        ((ev >= 101) & la.between(23, 34, inclusive="both")) |
+        ((ev >= 102) & la.between(22, 35, inclusive="both")) |
+        ((ev >= 103) & la.between(21, 36, inclusive="both")) |
+        ((ev >= 104) & la.between(20, 37, inclusive="both")) |
+        ((ev >= 105) & la.between(19, 38, inclusive="both"))
+    )
 
     return float(barrel_like.mean())
+
+
+def calc_hr_rate_per_pa(df):
+    if df.empty or "events" not in df.columns:
+        return 0.0
+
+    # Plate-appearance-ending events
+    pa_events = {
+        "single", "double", "triple", "home_run",
+        "walk", "intent_walk", "strikeout", "strikeout_double_play",
+        "hit_by_pitch", "field_out", "grounded_into_double_play",
+        "force_out", "field_error", "double_play", "triple_play",
+        "fielders_choice", "fielders_choice_out", "sac_fly",
+        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play",
+        "catcher_interf"
+    }
+
+    pa_df = df[df["events"].isin(pa_events)].copy()
+
+    if pa_df.empty:
+        return 0.0
+
+    return float((pa_df["events"] == "home_run").mean())
 
 
 def build_player_stats():
@@ -34,6 +68,7 @@ def build_player_stats():
         name = p["name"]
         mlbam_id = int(p["mlbam_id"])
         stand = str(p["stand"]).strip().upper()
+        team = str(p.get("team", "")).strip()
 
         try:
             df = statcast_batter(START_DATE.isoformat(), END_DATE.isoformat(), mlbam_id)
@@ -43,26 +78,30 @@ def build_player_stats():
                     "name": name,
                     "player_hr_rate": 0.0,
                     "barrel_rate": 0.0,
-                    "stand": stand
+                    "stand": stand,
+                    "team": team
                 })
                 continue
 
-            hr_rate = float((df["events"] == "home_run").mean())
+            hr_rate = calc_hr_rate_per_pa(df)
             barrel_rate = calc_barrel_like_rate(df)
 
             rows.append({
                 "name": name,
                 "player_hr_rate": round(hr_rate, 4),
                 "barrel_rate": round(barrel_rate, 4),
-                "stand": stand
+                "stand": stand,
+                "team": team
             })
 
-        except Exception:
+        except Exception as e:
+            print(f"FAILED hitter: {name} ({mlbam_id}) -> {e}")
             rows.append({
                 "name": name,
                 "player_hr_rate": 0.0,
                 "barrel_rate": 0.0,
-                "stand": stand
+                "stand": stand,
+                "team": team
             })
 
     return pd.DataFrame(rows)
@@ -89,12 +128,28 @@ def build_pitcher_stats():
                 })
                 continue
 
-            hr_allowed_rate = float((df["events"] == "home_run").mean())
+            # Better denominator for pitchers too: PA-ending events
+            pa_events = {
+                "single", "double", "triple", "home_run",
+                "walk", "intent_walk", "strikeout", "strikeout_double_play",
+                "hit_by_pitch", "field_out", "grounded_into_double_play",
+                "force_out", "field_error", "double_play", "triple_play",
+                "fielders_choice", "fielders_choice_out", "sac_fly",
+                "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play",
+                "catcher_interf"
+            }
+
+            pa_df = df[df["events"].isin(pa_events)].copy()
+            if pa_df.empty:
+                hr_allowed_rate = 0.0
+            else:
+                hr_allowed_rate = float((pa_df["events"] == "home_run").mean())
+
             pitcher_hr9 = round(hr_allowed_rate * 9, 4)
 
-            bb_type = df.get("bb_type")
-            if bb_type is not None:
-                flyball_rate = round((bb_type == "fly_ball").mean(), 4)
+            batted = df[df["bb_type"].notna()].copy() if "bb_type" in df.columns else pd.DataFrame()
+            if not batted.empty:
+                flyball_rate = round((batted["bb_type"] == "fly_ball").mean(), 4)
             else:
                 flyball_rate = 0.35
 
@@ -105,7 +160,8 @@ def build_pitcher_stats():
                 "p_throws": p_throws
             })
 
-        except Exception:
+        except Exception as e:
+            print(f"FAILED pitcher: {name} ({mlbam_id}) -> {e}")
             rows.append({
                 "name": name,
                 "pitcher_hr9": 1.0,

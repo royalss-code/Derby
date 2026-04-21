@@ -49,6 +49,7 @@ PARK_FACTOR_MAP = {
     "Chicago White Sox": 1.00,
 }
 
+
 def load_names():
     player_df = pd.read_csv(PLAYER_CSV)
     pitcher_df = pd.read_csv(PITCHER_CSV)
@@ -58,6 +59,7 @@ def load_names():
 
     return players, pitchers
 
+
 def american_odds_from_probability(prob):
     if prob <= 0 or prob >= 1:
         return "N/A"
@@ -65,8 +67,10 @@ def american_odds_from_probability(prob):
     if prob < 0.5:
         odds = round(((1 - prob) / prob) * 100)
         return f"+{odds}"
+
     odds = round((prob / (1 - prob)) * 100)
     return f"-{odds}"
+
 
 def build_features(player_stats, pitcher_stats, park_factor=1.0):
     player_hr_rate = float(player_stats["player_hr_rate"])
@@ -130,6 +134,7 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0):
         float(park_factor)
     ]]
 
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     prediction = None
@@ -165,11 +170,14 @@ def home():
                         if not player_stats or not pitcher_stats:
                             continue
 
+                        if player_stats.get("team") != game["away_team"]:
+                            continue
+
                         features = build_features(
-    			     player_stats=player_stats,
-    			     pitcher_stats=pitcher_stats,
-    			     park_factor=home_park_factor
-			  )
+                            player_stats=player_stats,
+                            pitcher_stats=pitcher_stats,
+                            park_factor=home_park_factor
+                        )
 
                         prob = model.predict_proba(features)[0][1]
 
@@ -196,10 +204,12 @@ def home():
                         if not player_stats or not pitcher_stats:
                             continue
 
+                        if player_stats.get("team") != game["home_team"]:
+                            continue
+
                         features = build_features(
                             player_stats=player_stats,
                             pitcher_stats=pitcher_stats,
-                            matchup=1.0,
                             park_factor=home_park_factor
                         )
 
@@ -244,7 +254,6 @@ def home():
                 features = build_features(
                     player_stats=player_stats,
                     pitcher_stats=pitcher_stats,
-                    matchup=matchup,
                     park_factor=park_factor
                 )
 
@@ -267,6 +276,7 @@ def home():
         selected_matchup=selected_matchup,
         selected_park_factor=selected_park_factor
     )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
