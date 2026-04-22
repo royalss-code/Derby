@@ -3,9 +3,10 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime, timedelta
+from weather_data import get_historical_game_weather
 
 START_DATE = "2024-03-20"
-END_DATE = "2026-04-20"
+END_DATE = "2026-04-21"
 OUTPUT_FILE = "data.csv"
 
 
@@ -39,6 +40,46 @@ def pull_statcast_in_chunks(start_date_str, end_date_str, chunk_days=30):
     return pd.concat(all_chunks, ignore_index=True)
 
 
+def build_weather_table(game_df):
+    weather_rows = []
+    unique_games = (
+        game_df[["game_date", "game_pk", "home_team"]]
+        .drop_duplicates()
+        .sort_values(["game_date", "game_pk"])
+    )
+
+    for _, row in tqdm(unique_games.iterrows(), total=len(unique_games), desc="Weather"):
+        try:
+            wx = get_historical_game_weather(
+                home_team=row["home_team"],
+                game_date=row["game_date"],
+                target_hour_local=19
+            )
+        except Exception as e:
+            print(f"FAILED weather: {row['home_team']} {row['game_date']} -> {e}")
+            wx = {
+                "temperature_f": 70.0,
+                "wind_speed_mph": 8.0,
+                "wind_direction_deg": 0.0,
+                "wind_out_mph": 0.0,
+                "humidity_pct": 50.0,
+                "weather_factor": 1.0
+            }
+
+        weather_rows.append({
+            "game_date": row["game_date"],
+            "game_pk": row["game_pk"],
+            "temperature_f": wx["temperature_f"],
+            "wind_speed_mph": wx["wind_speed_mph"],
+            "wind_direction_deg": wx["wind_direction_deg"],
+            "wind_out_mph": wx["wind_out_mph"],
+            "humidity_pct": wx["humidity_pct"],
+            "weather_factor": wx["weather_factor"],
+        })
+
+    return pd.DataFrame(weather_rows)
+
+
 print("Pulling Statcast data...")
 df = pull_statcast_in_chunks(START_DATE, END_DATE, chunk_days=30)
 
@@ -62,10 +103,8 @@ df = df.dropna(subset=["game_pk", "batter", "pitcher"])
 df["launch_speed"] = pd.to_numeric(df["launch_speed"], errors="coerce")
 df["launch_angle"] = pd.to_numeric(df["launch_angle"], errors="coerce")
 
-# Real outcome at event level
 df["is_hr"] = (df["events"] == "home_run").astype(int)
 
-# Better barrel-like contact approximation
 ev = pd.to_numeric(df["launch_speed"], errors="coerce")
 la = pd.to_numeric(df["launch_angle"], errors="coerce")
 
@@ -82,20 +121,16 @@ df["is_barrel_like"] = (
     )
 ).fillna(False).astype(int)
 
-# Simplified fly ball
 df["is_flyball"] = (df["bb_type"] == "fly_ball").astype(int)
 
-# Only true batted balls for barrel denominator
 df["is_batted_ball"] = (
     df["launch_speed"].notna() & df["launch_angle"].notna()
 ).astype(int)
 
-# Sort so rolling features only use past games
 df = df.sort_values(["game_date", "game_pk"]).reset_index(drop=True)
 
 print("Building hitter-game table...")
 
-# Aggregate to one row per hitter per game
 hitter_game = df.groupby(["game_date", "game_pk", "batter"]).agg(
     home_run=("is_hr", "max"),
     batter_events=("is_hr", "size"),
@@ -107,7 +142,6 @@ hitter_game = df.groupby(["game_date", "game_pk", "batter"]).agg(
     home_team=("home_team", lambda x: x.mode().iloc[0] if not x.mode().empty else x.iloc[0])
 ).reset_index()
 
-# Rolling hitter features BEFORE each game
 hitter_game = hitter_game.sort_values(["batter", "game_date", "game_pk"]).reset_index(drop=True)
 
 hitter_game["player_hr_rate"] = np.nan
@@ -127,11 +161,9 @@ for batter_id, idx in tqdm(hitter_game.groupby("batter").groups.items(), desc="H
         g["batter_barrels"] / g["batter_batted_balls"].replace(0, np.nan)
     )
 
-    # Long-term overall stats
     g["player_hr_rate"] = g["home_run"].expanding().mean().shift(1)
     g["barrel_rate"] = barrel_per_game.expanding().mean().shift(1)
 
-    # Recent overall stats
     g["recent_hr_rate"] = g["home_run"].rolling(5, min_periods=2).mean().shift(1)
     g["recent_barrel_rate"] = (
         barrel_per_game
@@ -140,7 +172,6 @@ for batter_id, idx in tqdm(hitter_game.groupby("batter").groups.items(), desc="H
         .shift(1)
     )
 
-    # Split stats vs pitcher handedness
     split_hr_vals = []
     split_barrel_vals = []
     split_recent_hr_vals = []
@@ -195,7 +226,6 @@ for batter_id, idx in tqdm(hitter_game.groupby("batter").groups.items(), desc="H
 
 print("Building pitcher-game table...")
 
-# Aggregate pitcher side per game WITH splits vs hitter handedness
 pitcher_game = df.groupby(["game_date", "game_pk", "pitcher"]).agg(
     hr_allowed=("is_hr", "sum"),
     pitcher_events=("is_hr", "size"),
@@ -273,13 +303,11 @@ final_df = hitter_game.merge(
     how="left"
 )
 
-# Real handedness matchup
 final_df["matchup"] = (
     ((final_df["stand"] == "L") & (final_df["p_throws"] == "R")) |
     ((final_df["stand"] == "R") & (final_df["p_throws"] == "L"))
 ).astype(int)
 
-# Park factor map
 park_factor_map = {
     "COL": 1.25,
     "NYY": 1.12,
@@ -345,6 +373,22 @@ final_df["power_vs_pitcher"] = (
     final_df["power_index"] * final_df["pitcher_hr9_adjusted"]
 )
 
+print("Building historical weather table...")
+weather_df = build_weather_table(final_df[["game_date", "game_pk", "home_team"]].copy())
+
+final_df = final_df.merge(
+    weather_df,
+    on=["game_date", "game_pk"],
+    how="left"
+)
+
+final_df["temperature_f"] = final_df["temperature_f"].fillna(70.0)
+final_df["wind_speed_mph"] = final_df["wind_speed_mph"].fillna(8.0)
+final_df["wind_direction_deg"] = final_df["wind_direction_deg"].fillna(0.0)
+final_df["wind_out_mph"] = final_df["wind_out_mph"].fillna(0.0)
+final_df["humidity_pct"] = final_df["humidity_pct"].fillna(50.0)
+final_df["weather_factor"] = final_df["weather_factor"].fillna(1.0)
+
 print("Rows before history filter:", len(final_df))
 print("Non-null player_hr_rate:", final_df["player_hr_rate"].notna().sum())
 print("Non-null barrel_rate:", final_df["barrel_rate"].notna().sum())
@@ -354,7 +398,6 @@ print("Non-null pitcher_hr9:", final_df["pitcher_hr9"].notna().sum())
 print("Non-null flyball_rate:", final_df["flyball_rate"].notna().sum())
 print("Non-null pitcher_hr_split:", final_df["pitcher_hr_split"].notna().sum())
 
-# Keep only rows with enough prior history
 final_df = final_df[
     (final_df["prior_games"] >= 5) &
     (final_df["prior_pitcher_games"] >= 2)
@@ -398,6 +441,11 @@ final_df = final_df[[
     "split_confidence",
     "matchup",
     "park_factor",
+    "temperature_f",
+    "wind_speed_mph",
+    "wind_out_mph",
+    "humidity_pct",
+    "weather_factor",
     "home_run"
 ]]
 

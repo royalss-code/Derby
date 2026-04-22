@@ -5,6 +5,7 @@ import pandas as pd
 from mlb_data import get_player_stats, get_pitcher_stats
 from today_games import get_today_games
 from live_rosters import get_team_roster
+from weather_data import get_live_game_weather
 
 app = Flask(__name__)
 
@@ -49,6 +50,7 @@ PARK_FACTOR_MAP = {
     "Chicago White Sox": 1.00,
 }
 
+
 def load_names():
     player_df = pd.read_csv(PLAYER_CSV)
     pitcher_df = pd.read_csv(PITCHER_CSV)
@@ -57,6 +59,7 @@ def load_names():
     pitchers = sorted(pitcher_df["name"].dropna().unique().tolist())
 
     return players, pitchers
+
 
 def american_odds_from_probability(prob):
     if prob <= 0 or prob >= 1:
@@ -69,18 +72,19 @@ def american_odds_from_probability(prob):
     odds = round((prob / (1 - prob)) * 100)
     return f"-{odds}"
 
-def build_features(player_stats, pitcher_stats, park_factor=1.0):
+
+def build_features(player_stats, pitcher_stats, park_factor=1.0, weather=None):
     player_hr_rate = float(player_stats["player_hr_rate"])
     barrel_rate = float(player_stats["barrel_rate"])
 
     p_throws = pitcher_stats.get("p_throws", "R")
 
     if p_throws == "R":
-        player_hr_rate_split = player_stats.get("hr_vs_R", player_hr_rate)
-        barrel_rate_split = player_stats.get("barrel_vs_R", barrel_rate)
+        player_hr_rate_split = float(player_stats.get("hr_vs_R", player_hr_rate))
+        barrel_rate_split = float(player_stats.get("barrel_vs_R", barrel_rate))
     else:
-        player_hr_rate_split = player_stats.get("hr_vs_L", player_hr_rate)
-        barrel_rate_split = player_stats.get("barrel_vs_L", barrel_rate)
+        player_hr_rate_split = float(player_stats.get("hr_vs_L", player_hr_rate))
+        barrel_rate_split = float(player_stats.get("barrel_vs_L", barrel_rate))
 
     recent_hr_rate = player_hr_rate
     recent_barrel_rate = barrel_rate
@@ -102,21 +106,23 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0):
     p_throws = pitcher_stats.get("p_throws", "R")
 
     if stand == "R":
-        pitcher_hr_rate_split = pitcher_stats.get("hr_allowed_vs_R", 0)
-        flyball_rate = pitcher_stats.get(
-            "flyball_vs_R",
-            pitcher_stats.get("flyball_rate", 0.35)
+        pitcher_hr_rate_split = float(pitcher_stats.get("hr_allowed_vs_R", 0))
+        flyball_rate = float(
+            pitcher_stats.get(
+                "flyball_vs_R",
+                pitcher_stats.get("flyball_rate", 0.35)
+            )
         )
     else:
-        pitcher_hr_rate_split = pitcher_stats.get("hr_allowed_vs_L", 0)
-        flyball_rate = pitcher_stats.get(
-            "flyball_vs_L",
-            pitcher_stats.get("flyball_rate", 0.35)
+        pitcher_hr_rate_split = float(pitcher_stats.get("hr_allowed_vs_L", 0))
+        flyball_rate = float(
+            pitcher_stats.get(
+                "flyball_vs_L",
+                pitcher_stats.get("flyball_rate", 0.35)
+            )
         )
 
     pitcher_hr9 = float(pitcher_stats["pitcher_hr9"])
-
-    # Blend overall and split pitcher weakness
     pitcher_hr9 = (pitcher_hr9 * 0.7) + ((pitcher_hr_rate_split * 9) * 0.3)
 
     power_vs_pitcher = power_index * pitcher_hr9
@@ -130,6 +136,13 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0):
         (stand == "L" and p_throws == "R") or
         (stand == "R" and p_throws == "L")
     )
+
+    weather = weather or {}
+    temperature_f = float(weather.get("temperature_f", 70.0))
+    wind_speed_mph = float(weather.get("wind_speed_mph", 8.0))
+    wind_out_mph = float(weather.get("wind_out_mph", 0.0))
+    humidity_pct = float(weather.get("humidity_pct", 50.0))
+    weather_factor = float(weather.get("weather_factor", 1.0))
 
     return [[
         player_hr_rate,
@@ -150,8 +163,14 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0):
         strong_hitter,
         split_confidence,
         matchup,
-        float(park_factor)
+        float(park_factor),
+        temperature_f,
+        wind_speed_mph,
+        wind_out_mph,
+        humidity_pct,
+        weather_factor
     ]]
+
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -176,6 +195,20 @@ def home():
         for game in games:
             home_park_factor = PARK_FACTOR_MAP.get(game["home_team"], 1.00)
 
+            try:
+                game_weather = get_live_game_weather(
+                    home_team=game["home_team"],
+                    target_hour_local=19
+                )
+            except Exception:
+                game_weather = {
+                    "temperature_f": 70.0,
+                    "wind_speed_mph": 8.0,
+                    "wind_out_mph": 0.0,
+                    "humidity_pct": 50.0,
+                    "weather_factor": 1.0
+                }
+
             if game["home_pitcher"] != "TBD":
                 away_hitters = get_team_roster(game["away_team"])
                 for hitter in away_hitters:
@@ -192,7 +225,8 @@ def home():
                         features = build_features(
                             player_stats=player_stats,
                             pitcher_stats=pitcher_stats,
-                            park_factor=home_park_factor
+                            park_factor=home_park_factor,
+                            weather=game_weather
                         )
 
                         prob = model.predict_proba(features)[0][1]
@@ -204,7 +238,10 @@ def home():
                             "opposing_pitcher": game["home_pitcher"],
                             "probability": prob,
                             "probability_pct": f"{prob:.2%}",
-                            "implied_odds": american_odds_from_probability(prob)
+                            "implied_odds": american_odds_from_probability(prob),
+                            "temp": round(game_weather["temperature_f"], 1),
+                            "wind_out_mph": round(game_weather["wind_out_mph"], 1),
+                            "weather_factor": round(game_weather["weather_factor"], 3)
                         })
                     except Exception:
                         continue
@@ -225,7 +262,8 @@ def home():
                         features = build_features(
                             player_stats=player_stats,
                             pitcher_stats=pitcher_stats,
-                            park_factor=home_park_factor
+                            park_factor=home_park_factor,
+                            weather=game_weather
                         )
 
                         prob = model.predict_proba(features)[0][1]
@@ -237,7 +275,10 @@ def home():
                             "opposing_pitcher": game["away_pitcher"],
                             "probability": prob,
                             "probability_pct": f"{prob:.2%}",
-                            "implied_odds": american_odds_from_probability(prob)
+                            "implied_odds": american_odds_from_probability(prob),
+                            "temp": round(game_weather["temperature_f"], 1),
+                            "wind_out_mph": round(game_weather["wind_out_mph"], 1),
+                            "weather_factor": round(game_weather["weather_factor"], 3)
                         })
                     except Exception:
                         continue
@@ -265,10 +306,20 @@ def home():
             elif not pitcher_stats:
                 error = f"Pitcher '{selected_pitcher}' not found."
             else:
+                # Manual tool fallback weather
+                manual_weather = {
+                    "temperature_f": 70.0,
+                    "wind_speed_mph": 8.0,
+                    "wind_out_mph": 0.0,
+                    "humidity_pct": 50.0,
+                    "weather_factor": 1.0
+                }
+
                 features = build_features(
                     player_stats=player_stats,
                     pitcher_stats=pitcher_stats,
-                    park_factor=park_factor
+                    park_factor=park_factor,
+                    weather=manual_weather
                 )
 
                 prob = model.predict_proba(features)[0][1]
@@ -290,6 +341,7 @@ def home():
         selected_matchup=selected_matchup,
         selected_park_factor=selected_park_factor
     )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
