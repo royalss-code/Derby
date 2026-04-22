@@ -1,102 +1,93 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MLB HR Predictor</title>
+    <title>Derby HR Model</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            margin: 40px;
+            margin: 30px;
+            background-color: #0f0f0f;
+            color: #f5f5f5;
         }
 
-        select, input, button {
-            margin: 8px;
-            padding: 8px;
-            width: 320px;
+        h1 {
+            margin-bottom: 8px;
+            color: #ffffff;
         }
 
-        .result {
-            margin-top: 20px;
-            font-size: 22px;
-            font-weight: bold;
+        h2 {
+            margin-top: 30px;
+            margin-bottom: 10px;
+            color: #f0f0f0;
+        }
+
+        .subtitle {
+            color: #bbbbbb;
+            margin-bottom: 20px;
         }
 
         .error {
             margin-top: 20px;
-            color: red;
+            color: #ff6b6b;
             font-weight: bold;
         }
 
         table {
             margin: 20px auto;
             border-collapse: collapse;
-            width: 95%;
+            width: 97%;
+            background-color: #181818;
         }
 
         th, td {
-            padding: 8px;
-            border: 1px solid #ccc;
+            padding: 10px 8px;
+            border: 1px solid #333;
+            font-size: 14px;
         }
 
-        h1, h2 {
-            margin-bottom: 10px;
+        th {
+            background-color: #222;
+            color: #fff;
+        }
+
+        tr:nth-child(even) {
+            background-color: #141414;
+        }
+
+        tr:hover {
+            background-color: #202020;
+        }
+
+        .top5 {
+            background-color: #1f3b22 !important;
+            font-weight: bold;
+        }
+
+        .weather-good {
+            color: #7CFC98;
+            font-weight: bold;
+        }
+
+        .weather-neutral {
+            color: #f5f5f5;
+        }
+
+        .weather-bad {
+            color: #ff8a8a;
+            font-weight: bold;
+        }
+
+        .small-note {
+            font-size: 12px;
+            color: #a8a8a8;
+            margin-top: 8px;
         }
     </style>
 </head>
 <body>
-    <h1>MLB Home Run Predictor</h1>
-
-    <h2>Manual Prediction</h2>
-
-    <form method="POST">
-        <div>
-            <select name="player_name" required>
-                <option value="">Select hitter</option>
-                {% for player in players %}
-                    <option value="{{ player }}" {% if player == selected_player %}selected{% endif %}>
-                        {{ player }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div>
-            <select name="pitcher_name" required>
-                <option value="">Select pitcher</option>
-                {% for pitcher in pitchers %}
-                    <option value="{{ pitcher }}" {% if pitcher == selected_pitcher %}selected{% endif %}>
-                        {{ pitcher }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div>
-            <input
-                name="matchup"
-                placeholder="Matchup (0 or 1)"
-                value="{{ selected_matchup }}"
-                required
-            >
-        </div>
-
-        <div>
-            <input
-                name="park_factor"
-                placeholder="Park factor (example 1.05)"
-                value="{{ selected_park_factor }}"
-                required
-            >
-        </div>
-
-        <div>
-            <button type="submit">Predict HR %</button>
-        </div>
-    </form>
-
-    {% if prediction %}
-        <div class="result">HR Probability: {{ prediction }}</div>
-    {% endif %}
+    <h1>Derby HR Model</h1>
+    <div class="subtitle">Daily home run probabilities powered by matchup data, park factors, and weather.</div>
 
     {% if error %}
         <div class="error">{{ error }}</div>
@@ -124,6 +115,7 @@
     {% endif %}
 
     <h2>Top HR Probabilities Today</h2>
+    <div class="small-note">Top 5 rows are highlighted. Weather columns help explain why a hitter ranks where they do.</div>
 
     {% if rankings %}
     <table>
@@ -135,9 +127,12 @@
             <th>Opposing Pitcher</th>
             <th>HR %</th>
             <th>Implied Odds</th>
+            <th>Temp (°F)</th>
+            <th>Wind Out (mph)</th>
+            <th>Weather Factor</th>
         </tr>
         {% for row in rankings %}
-        <tr>
+        <tr class="{% if loop.index <= 5 %}top5{% endif %}">
             <td>{{ loop.index }}</td>
             <td>{{ row.player }}</td>
             <td>{{ row.team }}</td>
@@ -145,6 +140,19 @@
             <td>{{ row.opposing_pitcher }}</td>
             <td>{{ row.probability_pct }}</td>
             <td>{{ row.implied_odds }}</td>
+            <td>{{ row.temp }}</td>
+            <td>{{ row.wind_out_mph }}</td>
+            <td class="
+                {% if row.weather_factor >= 1.05 %}
+                    weather-good
+                {% elif row.weather_factor <= 0.97 %}
+                    weather-bad
+                {% else %}
+                    weather-neutral
+                {% endif %}
+            ">
+                {{ row.weather_factor }}
+            </td>
         </tr>
         {% endfor %}
     </table>

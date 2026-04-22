@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 import pickle
 import os
 import pandas as pd
+
 from mlb_data import get_player_stats, get_pitcher_stats
 from today_games import get_today_games
 from live_rosters import get_team_roster
@@ -172,9 +173,8 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0, weather=None):
     ]]
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 def home():
-    prediction = None
     error = None
     rankings = []
 
@@ -186,19 +186,15 @@ def home():
 
     players, pitchers = load_names()
 
-    selected_player = ""
-    selected_pitcher = ""
-    selected_matchup = ""
-    selected_park_factor = ""
-
     try:
         for game in games:
             home_park_factor = PARK_FACTOR_MAP.get(game["home_team"], 1.00)
+            game_hour = int(game.get("game_hour", 19))
 
             try:
                 game_weather = get_live_game_weather(
                     home_team=game["home_team"],
-                    target_hour_local=19
+                    target_hour_local=game_hour
                 )
             except Exception:
                 game_weather = {
@@ -243,7 +239,8 @@ def home():
                             "wind_out_mph": round(game_weather["wind_out_mph"], 1),
                             "weather_factor": round(game_weather["weather_factor"], 3)
                         })
-                    except Exception:
+                    except Exception as e:
+                        print(f"Skipping hitter {hitter}: {e}")
                         continue
 
             if game["away_pitcher"] != "TBD":
@@ -280,7 +277,8 @@ def home():
                             "wind_out_mph": round(game_weather["wind_out_mph"], 1),
                             "weather_factor": round(game_weather["weather_factor"], 3)
                         })
-                    except Exception:
+                    except Exception as e:
+                        print(f"Skipping hitter {hitter}: {e}")
                         continue
 
         rankings = sorted(rankings, key=lambda x: x["probability"], reverse=True)
@@ -289,57 +287,13 @@ def home():
         if not error:
             error = f"Could not build rankings: {str(e)}"
 
-    if request.method == "POST":
-        try:
-            selected_player = request.form["player_name"]
-            selected_pitcher = request.form["pitcher_name"]
-            selected_matchup = request.form["matchup"]
-            selected_park_factor = request.form["park_factor"]
-
-            park_factor = float(selected_park_factor)
-
-            player_stats = get_player_stats(selected_player)
-            pitcher_stats = get_pitcher_stats(selected_pitcher)
-
-            if not player_stats:
-                error = f"Player '{selected_player}' not found."
-            elif not pitcher_stats:
-                error = f"Pitcher '{selected_pitcher}' not found."
-            else:
-                # Manual tool fallback weather
-                manual_weather = {
-                    "temperature_f": 70.0,
-                    "wind_speed_mph": 8.0,
-                    "wind_out_mph": 0.0,
-                    "humidity_pct": 50.0,
-                    "weather_factor": 1.0
-                }
-
-                features = build_features(
-                    player_stats=player_stats,
-                    pitcher_stats=pitcher_stats,
-                    park_factor=park_factor,
-                    weather=manual_weather
-                )
-
-                prob = model.predict_proba(features)[0][1]
-                prediction = f"{prob:.2%}"
-
-        except Exception as e:
-            error = f"Error: {str(e)}"
-
     return render_template(
         "index.html",
-        prediction=prediction,
         error=error,
         games=games,
         players=players,
         pitchers=pitchers,
-        rankings=rankings,
-        selected_player=selected_player,
-        selected_pitcher=selected_pitcher,
-        selected_matchup=selected_matchup,
-        selected_park_factor=selected_park_factor
+        rankings=rankings
     )
 
 
