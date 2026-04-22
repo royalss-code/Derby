@@ -34,5 +34,9 @@ def get_pitcher_stats(pitcher_name):
     return {
         "pitcher_hr9": float(row["pitcher_hr9"]),
         "flyball_rate": float(row["flyball_rate"]),
+        "hr_allowed_vs_R": float(row.get("hr_allowed_vs_R", 0)),
+        "hr_allowed_vs_L": float(row.get("hr_allowed_vs_L", 0)),
+        "flyball_vs_R": float(row.get("flyball_vs_R", 0.35)),
+        "flyball_vs_L": float(row.get("flyball_vs_L", 0.35)),
         "p_throws": str(row["p_throws"]).strip().upper() if "p_throws" in row else "R"
     }

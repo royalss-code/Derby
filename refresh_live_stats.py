@@ -111,6 +111,45 @@ def calc_split_stats(df):
     }
 
 
+def calc_pitcher_split_stats(df):
+    if df.empty:
+        return {
+            "hr_allowed_vs_R": 0.0,
+            "hr_allowed_vs_L": 0.0,
+            "flyball_vs_R": 0.35,
+            "flyball_vs_L": 0.35
+        }
+
+    pa_events = {
+        "single", "double", "triple", "home_run", "walk", "intent_walk",
+        "strikeout", "strikeout_double_play", "hit_by_pitch", "field_out",
+        "grounded_into_double_play", "force_out", "field_error", "double_play",
+        "triple_play", "fielders_choice", "fielders_choice_out", "sac_fly",
+        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"
+    }
+
+    def calc_side(stand_side):
+        vs = df[df["stand"] == stand_side]
+
+        pa = vs[vs["events"].isin(pa_events)]
+        hr_allowed = (pa["events"] == "home_run").mean() if not pa.empty else 0.0
+
+        batted = vs[vs["bb_type"].notna()] if "bb_type" in vs.columns else pd.DataFrame()
+        flyball_rate = (batted["bb_type"] == "fly_ball").mean() if not batted.empty else 0.35
+
+        return hr_allowed, flyball_rate
+
+    hr_vs_R, fb_vs_R = calc_side("R")
+    hr_vs_L, fb_vs_L = calc_side("L")
+
+    return {
+        "hr_allowed_vs_R": hr_vs_R,
+        "hr_allowed_vs_L": hr_vs_L,
+        "flyball_vs_R": fb_vs_R,
+        "flyball_vs_L": fb_vs_L
+    }
+
+
 def build_player_stats():
     raw_players = pd.read_csv(RAW_PLAYERS_FILE)
     rows = []
@@ -188,6 +227,10 @@ def build_pitcher_stats():
                     "name": name,
                     "pitcher_hr9": 1.0,
                     "flyball_rate": 0.35,
+                    "hr_allowed_vs_R": 0.0,
+                    "hr_allowed_vs_L": 0.0,
+                    "flyball_vs_R": 0.35,
+                    "flyball_vs_L": 0.35,
                     "p_throws": p_throws
                 })
                 continue
@@ -214,10 +257,16 @@ def build_pitcher_stats():
             else:
                 flyball_rate = 0.35
 
+            splits = calc_pitcher_split_stats(df)
+
             rows.append({
                 "name": name,
                 "pitcher_hr9": pitcher_hr9,
-                "flyball_rate": flyball_rate,
+                "flyball_rate": round(flyball_rate, 4),
+                "hr_allowed_vs_R": round(splits["hr_allowed_vs_R"], 4),
+                "hr_allowed_vs_L": round(splits["hr_allowed_vs_L"], 4),
+                "flyball_vs_R": round(splits["flyball_vs_R"], 4),
+                "flyball_vs_L": round(splits["flyball_vs_L"], 4),
                 "p_throws": p_throws
             })
 
@@ -227,6 +276,10 @@ def build_pitcher_stats():
                 "name": name,
                 "pitcher_hr9": 1.0,
                 "flyball_rate": 0.35,
+                "hr_allowed_vs_R": 0.0,
+                "hr_allowed_vs_L": 0.0,
+                "flyball_vs_R": 0.35,
+                "flyball_vs_L": 0.35,
                 "p_throws": p_throws
             })
 

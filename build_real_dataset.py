@@ -5,7 +5,7 @@ from tqdm import tqdm
 from datetime import datetime, timedelta
 
 START_DATE = "2024-03-20"
-END_DATE = "2026-04-19"
+END_DATE = "2026-04-20"
 OUTPUT_FILE = "data.csv"
 
 
@@ -195,11 +195,20 @@ for batter_id, idx in tqdm(hitter_game.groupby("batter").groups.items(), desc="H
 
 print("Building pitcher-game table...")
 
-# Aggregate pitcher side per game
+# Aggregate pitcher side per game WITH splits vs hitter handedness
 pitcher_game = df.groupby(["game_date", "game_pk", "pitcher"]).agg(
     hr_allowed=("is_hr", "sum"),
     pitcher_events=("is_hr", "size"),
-    flyballs_allowed=("is_flyball", "sum")
+    flyballs_allowed=("is_flyball", "sum"),
+
+    hr_allowed_vs_R=("is_hr", lambda x: x[df.loc[x.index, "stand"] == "R"].sum()),
+    hr_allowed_vs_L=("is_hr", lambda x: x[df.loc[x.index, "stand"] == "L"].sum()),
+
+    events_vs_R=("stand", lambda x: (x == "R").sum()),
+    events_vs_L=("stand", lambda x: (x == "L").sum()),
+
+    flyballs_vs_R=("is_flyball", lambda x: x[df.loc[x.index, "stand"] == "R"].sum()),
+    flyballs_vs_L=("is_flyball", lambda x: x[df.loc[x.index, "stand"] == "L"].sum())
 ).reset_index()
 
 pitcher_game = pitcher_game.sort_values(["pitcher", "game_date", "game_pk"]).reset_index(drop=True)
@@ -207,6 +216,10 @@ pitcher_game = pitcher_game.sort_values(["pitcher", "game_date", "game_pk"]).res
 pitcher_game["pitcher_hr9"] = np.nan
 pitcher_game["flyball_rate"] = np.nan
 pitcher_game["prior_pitcher_games"] = np.nan
+pitcher_game["hr_allowed_vs_R_roll"] = np.nan
+pitcher_game["hr_allowed_vs_L_roll"] = np.nan
+pitcher_game["flyball_vs_R_roll"] = np.nan
+pitcher_game["flyball_vs_L_roll"] = np.nan
 
 for pitcher_id, idx in tqdm(pitcher_game.groupby("pitcher").groups.items(), desc="Pitchers"):
     g = pitcher_game.loc[list(idx)].copy().sort_values(["game_date", "game_pk"])
@@ -217,10 +230,27 @@ for pitcher_id, idx in tqdm(pitcher_game.groupby("pitcher").groups.items(), desc
     g["pitcher_hr9"] = prior_hr_rate * 9
     g["pitcher_hr9"] = g["pitcher_hr9"].clip(0.5, 2.0)
     g["flyball_rate"] = prior_fb_rate
+
+    hr_rate_vs_R = (g["hr_allowed_vs_R"] / g["events_vs_R"].replace(0, np.nan))
+    hr_rate_vs_L = (g["hr_allowed_vs_L"] / g["events_vs_L"].replace(0, np.nan))
+
+    g["hr_allowed_vs_R_roll"] = hr_rate_vs_R.expanding().mean().shift(1)
+    g["hr_allowed_vs_L_roll"] = hr_rate_vs_L.expanding().mean().shift(1)
+
+    fb_rate_vs_R = (g["flyballs_vs_R"] / g["events_vs_R"].replace(0, np.nan))
+    fb_rate_vs_L = (g["flyballs_vs_L"] / g["events_vs_L"].replace(0, np.nan))
+
+    g["flyball_vs_R_roll"] = fb_rate_vs_R.expanding().mean().shift(1)
+    g["flyball_vs_L_roll"] = fb_rate_vs_L.expanding().mean().shift(1)
+
     g["prior_pitcher_games"] = np.arange(len(g))
 
     pitcher_game.loc[g.index, "pitcher_hr9"] = g["pitcher_hr9"]
     pitcher_game.loc[g.index, "flyball_rate"] = g["flyball_rate"]
+    pitcher_game.loc[g.index, "hr_allowed_vs_R_roll"] = g["hr_allowed_vs_R_roll"]
+    pitcher_game.loc[g.index, "hr_allowed_vs_L_roll"] = g["hr_allowed_vs_L_roll"]
+    pitcher_game.loc[g.index, "flyball_vs_R_roll"] = g["flyball_vs_R_roll"]
+    pitcher_game.loc[g.index, "flyball_vs_L_roll"] = g["flyball_vs_L_roll"]
     pitcher_game.loc[g.index, "prior_pitcher_games"] = g["prior_pitcher_games"]
 
 print("Merging hitter and pitcher features...")
@@ -232,6 +262,10 @@ final_df = hitter_game.merge(
         "pitcher",
         "pitcher_hr9",
         "flyball_rate",
+        "hr_allowed_vs_R_roll",
+        "hr_allowed_vs_L_roll",
+        "flyball_vs_R_roll",
+        "flyball_vs_L_roll",
         "prior_pitcher_games"
     ]],
     left_on=["game_date", "game_pk", "opp_pitcher"],
@@ -296,8 +330,19 @@ final_df["power_index"] = (
     final_df["recent_barrel_rate_split"] * 0.02
 )
 
+final_df["pitcher_hr_split"] = np.where(
+    final_df["stand"] == "R",
+    final_df["hr_allowed_vs_R_roll"],
+    final_df["hr_allowed_vs_L_roll"]
+)
+
+final_df["pitcher_hr9_adjusted"] = (
+    final_df["pitcher_hr9"] * 0.7 +
+    (final_df["pitcher_hr_split"] * 9) * 0.3
+)
+
 final_df["power_vs_pitcher"] = (
-    final_df["power_index"] * final_df["pitcher_hr9"]
+    final_df["power_index"] * final_df["pitcher_hr9_adjusted"]
 )
 
 print("Rows before history filter:", len(final_df))
@@ -307,6 +352,7 @@ print("Non-null recent_hr_rate:", final_df["recent_hr_rate"].notna().sum())
 print("Non-null recent_barrel_rate:", final_df["recent_barrel_rate"].notna().sum())
 print("Non-null pitcher_hr9:", final_df["pitcher_hr9"].notna().sum())
 print("Non-null flyball_rate:", final_df["flyball_rate"].notna().sum())
+print("Non-null pitcher_hr_split:", final_df["pitcher_hr_split"].notna().sum())
 
 # Keep only rows with enough prior history
 final_df = final_df[
@@ -323,7 +369,7 @@ final_df = final_df.dropna(subset=[
     "barrel_rate_split",
     "recent_hr_rate_split",
     "recent_barrel_rate_split",
-    "pitcher_hr9",
+    "pitcher_hr9_adjusted",
     "flyball_rate",
     "home_run"
 ])
@@ -342,7 +388,7 @@ final_df = final_df[[
     "recent_hr_rate_split",
     "recent_barrel_rate_split",
     "power_index",
-    "pitcher_hr9",
+    "pitcher_hr9_adjusted",
     "flyball_rate",
     "power_vs_pitcher",
     "bad_pitcher",

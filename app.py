@@ -65,6 +65,7 @@ def american_odds_from_probability(prob):
     if prob < 0.5:
         odds = round(((1 - prob) / prob) * 100)
         return f"+{odds}"
+
     odds = round((prob / (1 - prob)) * 100)
     return f"-{odds}"
 
@@ -97,16 +98,33 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0):
         recent_barrel_rate_split * 0.02
     )
 
+    stand = player_stats.get("stand", "R")
+    p_throws = pitcher_stats.get("p_throws", "R")
+
+    if stand == "R":
+        pitcher_hr_rate_split = pitcher_stats.get("hr_allowed_vs_R", 0)
+        flyball_rate = pitcher_stats.get(
+            "flyball_vs_R",
+            pitcher_stats.get("flyball_rate", 0.35)
+        )
+    else:
+        pitcher_hr_rate_split = pitcher_stats.get("hr_allowed_vs_L", 0)
+        flyball_rate = pitcher_stats.get(
+            "flyball_vs_L",
+            pitcher_stats.get("flyball_rate", 0.35)
+        )
+
     pitcher_hr9 = float(pitcher_stats["pitcher_hr9"])
-    flyball_rate = float(pitcher_stats["flyball_rate"])
+
+    # Blend overall and split pitcher weakness
+    pitcher_hr9 = (pitcher_hr9 * 0.7) + ((pitcher_hr_rate_split * 9) * 0.3)
+
     power_vs_pitcher = power_index * pitcher_hr9
     bad_pitcher = int(pitcher_hr9 > 1.2)
     weak_hitter = int(player_hr_rate < 0.12)
     very_weak_hitter = int(player_hr_rate < 0.08)
     strong_hitter = int(player_hr_rate > 0.18)
     split_confidence = 1
-
-    stand = player_stats.get("stand", "R")
 
     matchup = int(
         (stand == "L" and p_throws == "R") or
@@ -159,7 +177,7 @@ def home():
             home_park_factor = PARK_FACTOR_MAP.get(game["home_team"], 1.00)
 
             if game["home_pitcher"] != "TBD":
-                away_hitters = get_team_roster(game["away_team"])[:8]
+                away_hitters = get_team_roster(game["away_team"])
                 for hitter in away_hitters:
                     try:
                         player_stats = get_player_stats(hitter)
@@ -192,7 +210,7 @@ def home():
                         continue
 
             if game["away_pitcher"] != "TBD":
-                home_hitters = get_team_roster(game["home_team"])[:8]
+                home_hitters = get_team_roster(game["home_team"])
                 for hitter in home_hitters:
                     try:
                         player_stats = get_player_stats(hitter)
@@ -224,7 +242,7 @@ def home():
                     except Exception:
                         continue
 
-        rankings = sorted(rankings, key=lambda x: x["probability"], reverse=True)[:15]
+        rankings = sorted(rankings, key=lambda x: x["probability"], reverse=True)
 
     except Exception as e:
         if not error:
