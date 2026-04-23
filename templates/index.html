@@ -78,6 +78,25 @@
             font-weight: bold;
         }
 
+        .confidence-elite {
+            color: #7CFC98;
+            font-weight: bold;
+        }
+
+        .confidence-strong {
+            color: #9be7ff;
+            font-weight: bold;
+        }
+
+        .confidence-solid {
+            color: #ffe082;
+            font-weight: bold;
+        }
+
+        .confidence-dart {
+            color: #d6d6d6;
+        }
+
         .small-note {
             font-size: 12px;
             color: #a8a8a8;
@@ -87,7 +106,7 @@
 </head>
 <body>
     <h1>Derby HR Model</h1>
-    <div class="subtitle">Daily home run probabilities powered by matchup data, park factors, and weather.</div>
+    <div class="subtitle">Daily home run probabilities powered by matchup data, park factors, handedness splits, and weather.</div>
 
     {% if error %}
         <div class="error">{{ error }}</div>
@@ -115,7 +134,7 @@
     {% endif %}
 
     <h2>Top HR Probabilities Today</h2>
-    <div class="small-note">Top 5 rows are highlighted. Weather columns help explain why a hitter ranks where they do.</div>
+    <div class="small-note">Top 5 rows are highlighted. Confidence, split park factor, and weather columns help explain each ranking.</div>
 
     {% if rankings %}
     <table>
@@ -127,6 +146,8 @@
             <th>Opposing Pitcher</th>
             <th>HR %</th>
             <th>Implied Odds</th>
+            <th>Confidence</th>
+            <th>Split Park</th>
             <th>Temp (°F)</th>
             <th>Wind Out (mph)</th>
             <th>Weather Factor</th>
@@ -140,8 +161,25 @@
             <td>{{ row.opposing_pitcher }}</td>
             <td>{{ row.probability_pct }}</td>
             <td>{{ row.implied_odds }}</td>
+
+            <td class="
+                {% if 'Elite' in row.confidence %}
+                    confidence-elite
+                {% elif 'Strong' in row.confidence %}
+                    confidence-strong
+                {% elif 'Solid' in row.confidence %}
+                    confidence-solid
+                {% else %}
+                    confidence-dart
+                {% endif %}
+            ">
+                {{ row.confidence }}
+            </td>
+
+            <td>{{ row.park_factor_split }}</td>
             <td>{{ row.temp }}</td>
             <td>{{ row.wind_out_mph }}</td>
+
             <td class="
                 {% if row.weather_factor >= 1.05 %}
                     weather-good

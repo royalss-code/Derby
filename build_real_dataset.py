@@ -10,6 +10,76 @@ END_DATE = "2026-04-21"
 OUTPUT_FILE = "data.csv"
 
 
+PARK_FACTOR_MAP = {
+    "COL": 1.25,
+    "NYY": 1.12,
+    "LAD": 0.98,
+    "SF": 0.90,
+    "BOS": 1.05,
+    "CIN": 1.10,
+    "PHI": 1.08,
+    "ATL": 1.02,
+    "CHC": 1.03,
+    "TEX": 1.04,
+    "HOU": 0.97,
+    "SEA": 0.92,
+    "SD": 0.95,
+    "MIA": 0.91,
+    "DET": 0.94,
+    "KC": 0.96,
+    "OAK": 0.89,
+    "TB": 0.93,
+    "NYM": 0.97,
+    "STL": 0.99,
+    "MIL": 1.01,
+    "BAL": 1.02,
+    "TOR": 1.00,
+    "CLE": 0.98,
+    "MIN": 1.00,
+    "PIT": 0.95,
+    "WSH": 0.99,
+    "ARI": 1.01,
+    "LAA": 0.96,
+    "CWS": 1.00
+}
+
+# Starter handedness-based HR park factors
+# L = left-handed hitter
+# R = right-handed hitter
+PARK_FACTOR_SPLIT_MAP = {
+    "ARI": {"L": 1.03, "R": 0.99},
+    "ATL": {"L": 1.01, "R": 1.03},
+    "BAL": {"L": 0.97, "R": 1.06},
+    "BOS": {"L": 0.95, "R": 1.12},
+    "CHC": {"L": 1.02, "R": 1.04},
+    "CIN": {"L": 1.08, "R": 1.12},
+    "CLE": {"L": 0.99, "R": 0.97},
+    "COL": {"L": 1.24, "R": 1.26},
+    "CWS": {"L": 1.02, "R": 0.98},
+    "DET": {"L": 0.95, "R": 0.93},
+    "HOU": {"L": 1.01, "R": 0.94},
+    "KC": {"L": 0.98, "R": 0.94},
+    "LAA": {"L": 0.98, "R": 0.94},
+    "LAD": {"L": 1.00, "R": 0.96},
+    "MIA": {"L": 0.93, "R": 0.89},
+    "MIL": {"L": 1.03, "R": 0.99},
+    "MIN": {"L": 1.02, "R": 0.98},
+    "NYM": {"L": 0.99, "R": 0.95},
+    "NYY": {"L": 1.20, "R": 1.02},
+    "OAK": {"L": 0.90, "R": 0.88},
+    "PHI": {"L": 1.06, "R": 1.10},
+    "PIT": {"L": 0.94, "R": 0.96},
+    "SD": {"L": 0.97, "R": 0.93},
+    "SEA": {"L": 0.95, "R": 0.90},
+    "SF": {"L": 0.93, "R": 0.87},
+    "STL": {"L": 1.00, "R": 0.98},
+    "TB": {"L": 0.95, "R": 0.91},
+    "TEX": {"L": 1.03, "R": 1.05},
+    "TOR": {"L": 1.01, "R": 0.99},
+    "WSH": {"L": 1.01, "R": 0.97},
+}
+
+
 def pull_statcast_in_chunks(start_date_str, end_date_str, chunk_days=30):
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
@@ -78,6 +148,11 @@ def build_weather_table(game_df):
         })
 
     return pd.DataFrame(weather_rows)
+
+
+def get_split_park_factor(home_team_code, stand):
+    split_entry = PARK_FACTOR_SPLIT_MAP.get(str(home_team_code), {})
+    return float(split_entry.get(str(stand), 1.00))
 
 
 print("Pulling Statcast data...")
@@ -230,13 +305,10 @@ pitcher_game = df.groupby(["game_date", "game_pk", "pitcher"]).agg(
     hr_allowed=("is_hr", "sum"),
     pitcher_events=("is_hr", "size"),
     flyballs_allowed=("is_flyball", "sum"),
-
     hr_allowed_vs_R=("is_hr", lambda x: x[df.loc[x.index, "stand"] == "R"].sum()),
     hr_allowed_vs_L=("is_hr", lambda x: x[df.loc[x.index, "stand"] == "L"].sum()),
-
     events_vs_R=("stand", lambda x: (x == "R").sum()),
     events_vs_L=("stand", lambda x: (x == "L").sum()),
-
     flyballs_vs_R=("is_flyball", lambda x: x[df.loc[x.index, "stand"] == "R"].sum()),
     flyballs_vs_L=("is_flyball", lambda x: x[df.loc[x.index, "stand"] == "L"].sum())
 ).reset_index()
@@ -308,40 +380,13 @@ final_df["matchup"] = (
     ((final_df["stand"] == "R") & (final_df["p_throws"] == "L"))
 ).astype(int)
 
-park_factor_map = {
-    "COL": 1.25,
-    "NYY": 1.12,
-    "LAD": 0.98,
-    "SF": 0.90,
-    "BOS": 1.05,
-    "CIN": 1.10,
-    "PHI": 1.08,
-    "ATL": 1.02,
-    "CHC": 1.03,
-    "TEX": 1.04,
-    "HOU": 0.97,
-    "SEA": 0.92,
-    "SD": 0.95,
-    "MIA": 0.91,
-    "DET": 0.94,
-    "KC": 0.96,
-    "OAK": 0.89,
-    "TB": 0.93,
-    "NYM": 0.97,
-    "STL": 0.99,
-    "MIL": 1.01,
-    "BAL": 1.02,
-    "TOR": 1.00,
-    "CLE": 0.98,
-    "MIN": 1.00,
-    "PIT": 0.95,
-    "WSH": 0.99,
-    "ARI": 1.01,
-    "LAA": 0.96,
-    "CWS": 1.00
-}
+final_df["park_factor"] = final_df["home_team"].map(PARK_FACTOR_MAP).fillna(1.00)
 
-final_df["park_factor"] = final_df["home_team"].map(park_factor_map).fillna(1.00)
+final_df["park_factor_split"] = final_df.apply(
+    lambda row: get_split_park_factor(row["home_team"], row["stand"]),
+    axis=1
+)
+
 final_df["bad_pitcher"] = (final_df["pitcher_hr9"] > 1.2).astype(int)
 final_df["weak_hitter"] = (final_df["player_hr_rate"] < 0.12).astype(int)
 final_df["very_weak_hitter"] = (final_df["player_hr_rate"] < 0.08).astype(int)
@@ -441,6 +486,7 @@ final_df = final_df[[
     "split_confidence",
     "matchup",
     "park_factor",
+    "park_factor_split",
     "temperature_f",
     "wind_speed_mph",
     "wind_out_mph",

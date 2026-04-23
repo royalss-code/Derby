@@ -51,6 +51,39 @@ PARK_FACTOR_MAP = {
     "Chicago White Sox": 1.00,
 }
 
+PARK_FACTOR_SPLIT_MAP = {
+    "Colorado Rockies": {"L": 1.24, "R": 1.26},
+    "New York Yankees": {"L": 1.20, "R": 1.02},
+    "Los Angeles Dodgers": {"L": 1.00, "R": 0.96},
+    "San Francisco Giants": {"L": 0.93, "R": 0.87},
+    "Boston Red Sox": {"L": 0.95, "R": 1.12},
+    "Cincinnati Reds": {"L": 1.08, "R": 1.12},
+    "Philadelphia Phillies": {"L": 1.06, "R": 1.10},
+    "Atlanta Braves": {"L": 1.01, "R": 1.03},
+    "Chicago Cubs": {"L": 1.02, "R": 1.04},
+    "Texas Rangers": {"L": 1.03, "R": 1.05},
+    "Houston Astros": {"L": 1.01, "R": 0.94},
+    "Seattle Mariners": {"L": 0.95, "R": 0.90},
+    "San Diego Padres": {"L": 0.97, "R": 0.93},
+    "Miami Marlins": {"L": 0.93, "R": 0.89},
+    "Detroit Tigers": {"L": 0.95, "R": 0.93},
+    "Kansas City Royals": {"L": 0.98, "R": 0.94},
+    "Oakland Athletics": {"L": 0.90, "R": 0.88},
+    "Tampa Bay Rays": {"L": 0.95, "R": 0.91},
+    "New York Mets": {"L": 0.99, "R": 0.95},
+    "St. Louis Cardinals": {"L": 1.00, "R": 0.98},
+    "Milwaukee Brewers": {"L": 1.03, "R": 0.99},
+    "Baltimore Orioles": {"L": 0.97, "R": 1.06},
+    "Toronto Blue Jays": {"L": 1.01, "R": 0.99},
+    "Cleveland Guardians": {"L": 0.99, "R": 0.97},
+    "Minnesota Twins": {"L": 1.02, "R": 0.98},
+    "Pittsburgh Pirates": {"L": 0.94, "R": 0.96},
+    "Washington Nationals": {"L": 1.01, "R": 0.97},
+    "Arizona Diamondbacks": {"L": 1.03, "R": 0.99},
+    "Los Angeles Angels": {"L": 0.98, "R": 0.94},
+    "Chicago White Sox": {"L": 1.02, "R": 0.98},
+}
+
 
 def load_names():
     player_df = pd.read_csv(PLAYER_CSV)
@@ -74,7 +107,23 @@ def american_odds_from_probability(prob):
     return f"-{odds}"
 
 
-def build_features(player_stats, pitcher_stats, park_factor=1.0, weather=None):
+def get_split_park_factor(team_name, stand):
+    split_entry = PARK_FACTOR_SPLIT_MAP.get(str(team_name), {})
+    return float(split_entry.get(str(stand), 1.00))
+
+
+def get_confidence(prob):
+    if prob >= 0.18:
+        return "🔥 Elite"
+    elif prob >= 0.14:
+        return "✅ Strong"
+    elif prob >= 0.11:
+        return "⚖️ Solid"
+    else:
+        return "🎯 Dart"
+
+
+def build_features(player_stats, pitcher_stats, park_factor=1.0, park_factor_split=1.0, weather=None):
     player_hr_rate = float(player_stats["player_hr_rate"])
     barrel_rate = float(player_stats["barrel_rate"])
 
@@ -165,6 +214,7 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0, weather=None):
         split_confidence,
         matchup,
         float(park_factor),
+        float(park_factor_split),
         temperature_f,
         wind_speed_mph,
         wind_out_mph,
@@ -218,10 +268,14 @@ def home():
                         if player_stats.get("team") != game["away_team"]:
                             continue
 
+                        stand = player_stats.get("stand", "R")
+                        park_factor_split = get_split_park_factor(game["home_team"], stand)
+
                         features = build_features(
                             player_stats=player_stats,
                             pitcher_stats=pitcher_stats,
                             park_factor=home_park_factor,
+                            park_factor_split=park_factor_split,
                             weather=game_weather
                         )
 
@@ -237,7 +291,9 @@ def home():
                             "implied_odds": american_odds_from_probability(prob),
                             "temp": round(game_weather["temperature_f"], 1),
                             "wind_out_mph": round(game_weather["wind_out_mph"], 1),
-                            "weather_factor": round(game_weather["weather_factor"], 3)
+                            "weather_factor": round(game_weather["weather_factor"], 3),
+                            "park_factor_split": round(park_factor_split, 3),
+                            "confidence": get_confidence(prob)
                         })
                     except Exception as e:
                         print(f"Skipping hitter {hitter}: {e}")
@@ -256,10 +312,14 @@ def home():
                         if player_stats.get("team") != game["home_team"]:
                             continue
 
+                        stand = player_stats.get("stand", "R")
+                        park_factor_split = get_split_park_factor(game["home_team"], stand)
+
                         features = build_features(
                             player_stats=player_stats,
                             pitcher_stats=pitcher_stats,
                             park_factor=home_park_factor,
+                            park_factor_split=park_factor_split,
                             weather=game_weather
                         )
 
@@ -275,7 +335,9 @@ def home():
                             "implied_odds": american_odds_from_probability(prob),
                             "temp": round(game_weather["temperature_f"], 1),
                             "wind_out_mph": round(game_weather["wind_out_mph"], 1),
-                            "weather_factor": round(game_weather["weather_factor"], 3)
+                            "weather_factor": round(game_weather["weather_factor"], 3),
+                            "park_factor_split": round(park_factor_split, 3),
+                            "confidence": get_confidence(prob)
                         })
                     except Exception as e:
                         print(f"Skipping hitter {hitter}: {e}")
