@@ -15,6 +15,33 @@ PITCHER_OUTPUT_FILE = "pitcher_stats.csv"
 
 SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 PEOPLE_URL = "https://statsapi.mlb.com/api/v1/people/{person_id}"
+PLAYER_PEOPLE_URL = "https://statsapi.mlb.com/api/v1/people/{person_id}?hydrate=currentTeam"
+GAME_FEED_URL = "https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
+
+
+def clean_player_duplicates():
+    if not os.path.exists(RAW_PLAYERS_FILE):
+        print(f"{RAW_PLAYERS_FILE} not found, skipping hitter duplicate cleanup.")
+        return
+
+    df = pd.read_csv(RAW_PLAYERS_FILE)
+
+    if "mlbam_id" not in df.columns:
+        print(f"'mlbam_id' column not found in {RAW_PLAYERS_FILE}, skipping hitter duplicate cleanup.")
+        return
+
+    before = len(df)
+    dupes = df[df.duplicated(subset=["mlbam_id"], keep="first")].copy()
+    df = df.drop_duplicates(subset=["mlbam_id"], keep="first")
+    after = len(df)
+
+    df.to_csv(RAW_PLAYERS_FILE, index=False)
+
+    print(f"Removed {before - after} duplicate hitters from {RAW_PLAYERS_FILE}.")
+    if not dupes.empty:
+        print("Removed hitter duplicates:")
+        for _, row in dupes.iterrows():
+            print(f'{row["name"]},{row["mlbam_id"]},{row["stand"]},{row["team"]}')
 
 
 def clean_pitcher_duplicates():
@@ -42,16 +69,52 @@ def clean_pitcher_duplicates():
             print(f'{row["name"]},{row["mlbam_id"]},{row["p_throws"]}')
 
 
-def fetch_schedule_for_date(game_date: str):
+def fetch_schedule_for_date(game_date: str, hydrate_probable_pitcher=False):
     params = {
         "sportId": 1,
         "date": game_date,
-        "hydrate": "probablePitcher"
     }
+
+    if hydrate_probable_pitcher:
+        params["hydrate"] = "probablePitcher"
 
     response = requests.get(SCHEDULE_URL, params=params, timeout=20)
     response.raise_for_status()
     return response.json()
+
+
+def fetch_game_feed(game_pk: int):
+    url = GAME_FEED_URL.format(game_pk=game_pk)
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_player_info(person_id: int):
+    url = PLAYER_PEOPLE_URL.format(person_id=person_id)
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+    data = response.json()
+
+    people = data.get("people", [])
+    if not people:
+        return None
+
+    person = people[0]
+
+    name = person.get("fullName", "")
+    stand = person.get("batSide", {}).get("code", "")
+    team = person.get("currentTeam", {}).get("name", "")
+
+    if stand not in ("L", "R", "S"):
+        stand = ""
+
+    return {
+        "name": name,
+        "mlbam_id": str(person_id),
+        "stand": stand,
+        "team": team
+    }
 
 
 def fetch_pitcher_handedness(person_id: int):
@@ -74,6 +137,22 @@ def fetch_pitcher_handedness(person_id: int):
     return ""
 
 
+def load_existing_players(filepath):
+    existing_rows = []
+    existing_ids = set()
+
+    if not os.path.exists(filepath):
+        return existing_rows, existing_ids
+
+    with open(filepath, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            existing_rows.append(row)
+            existing_ids.add(str(row["mlbam_id"]).strip())
+
+    return existing_rows, existing_ids
+
+
 def load_existing_pitchers(filepath):
     existing_rows = []
     existing_ids = set()
@@ -90,6 +169,101 @@ def load_existing_pitchers(filepath):
     return existing_rows, existing_ids
 
 
+def get_yesterday_hr_hitters():
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    try:
+        schedule_data = fetch_schedule_for_date(yesterday, hydrate_probable_pitcher=False)
+    except Exception as e:
+        print(f"FAILED schedule fetch for {yesterday}: {e}")
+        return []
+
+    hr_hitter_ids = set()
+
+    for day in schedule_data.get("dates", []):
+        for game in day.get("games", []):
+            game_pk = game.get("gamePk")
+            if not game_pk:
+                continue
+
+            try:
+                feed = fetch_game_feed(game_pk)
+            except Exception as e:
+                print(f"FAILED game feed for {game_pk}: {e}")
+                continue
+
+            plays = (
+                feed.get("liveData", {})
+                .get("plays", {})
+                .get("allPlays", [])
+            )
+
+            for play in plays:
+                result = play.get("result", {})
+                event_type = str(result.get("eventType", "")).lower()
+                event_name = str(result.get("event", "")).lower()
+
+                if event_type == "home_run" or event_name == "home run":
+                    batter = play.get("matchup", {}).get("batter", {})
+                    batter_id = batter.get("id")
+                    if batter_id:
+                        hr_hitter_ids.add(int(batter_id))
+
+    hitters = []
+    for hitter_id in hr_hitter_ids:
+        try:
+            info = fetch_player_info(hitter_id)
+            if info and info["name"] and info["mlbam_id"]:
+                hitters.append(info)
+        except Exception as e:
+            print(f"FAILED hitter lookup {hitter_id}: {e}")
+
+    return hitters
+
+
+def update_player_list_from_yesterday_hr():
+    _, existing_ids = load_existing_players(RAW_PLAYERS_FILE)
+    new_rows = []
+
+    hr_hitters = get_yesterday_hr_hitters()
+
+    for hitter in hr_hitters:
+        hitter_id = str(hitter["mlbam_id"]).strip()
+
+        if hitter_id in existing_ids:
+            continue
+
+        row = {
+            "name": hitter["name"],
+            "mlbam_id": hitter_id,
+            "stand": hitter["stand"],
+            "team": hitter["team"]
+        }
+
+        new_rows.append(row)
+        existing_ids.add(hitter_id)
+
+    if new_rows:
+        file_exists = os.path.exists(RAW_PLAYERS_FILE)
+
+        with open(RAW_PLAYERS_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=["name", "mlbam_id", "stand", "team"]
+            )
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writerows(new_rows)
+
+    print(f"Added {len(new_rows)} new hitters from yesterday's home runs.")
+    if new_rows:
+        print("New hitters added:")
+        for row in new_rows:
+            print(f'{row["name"]},{row["mlbam_id"]},{row["stand"]},{row["team"]}')
+
+
 def update_pitcher_list():
     _, existing_ids = load_existing_pitchers(RAW_PITCHERS_FILE)
     new_rows = []
@@ -103,7 +277,7 @@ def update_pitcher_list():
         game_date = d.strftime("%Y-%m-%d")
 
         try:
-            data = fetch_schedule_for_date(game_date)
+            data = fetch_schedule_for_date(game_date, hydrate_probable_pitcher=True)
         except Exception as e:
             print(f"FAILED schedule fetch for {game_date}: {e}")
             continue
@@ -438,6 +612,15 @@ def build_pitcher_stats():
 
 
 if __name__ == "__main__":
+    print("Cleaning duplicate hitters...")
+    clean_player_duplicates()
+
+    print("Adding yesterday's HR hitters to raw_players.csv...")
+    update_player_list_from_yesterday_hr()
+
+    print("Cleaning duplicate hitters again after update...")
+    clean_player_duplicates()
+
     print("Cleaning duplicate pitchers...")
     clean_pitcher_duplicates()
 
