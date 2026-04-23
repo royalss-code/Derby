@@ -132,14 +132,24 @@ def build_features(player_stats, pitcher_stats, park_factor=1.0, park_factor_spl
     if p_throws == "R":
         player_hr_rate_split = float(player_stats.get("hr_vs_R", player_hr_rate))
         barrel_rate_split = float(player_stats.get("barrel_vs_R", barrel_rate))
+        recent_hr_rate_split = float(
+            player_stats.get("recent_hr_rate_vs_R", player_stats.get("hr_vs_R", player_hr_rate))
+        )
+        recent_barrel_rate_split = float(
+            player_stats.get("recent_barrel_rate_vs_R", player_stats.get("barrel_vs_R", barrel_rate))
+        )
     else:
         player_hr_rate_split = float(player_stats.get("hr_vs_L", player_hr_rate))
         barrel_rate_split = float(player_stats.get("barrel_vs_L", barrel_rate))
+        recent_hr_rate_split = float(
+            player_stats.get("recent_hr_rate_vs_L", player_stats.get("hr_vs_L", player_hr_rate))
+        )
+        recent_barrel_rate_split = float(
+            player_stats.get("recent_barrel_rate_vs_L", player_stats.get("barrel_vs_L", barrel_rate))
+        )
 
-    recent_hr_rate = player_hr_rate
-    recent_barrel_rate = barrel_rate
-    recent_hr_rate_split = player_hr_rate_split
-    recent_barrel_rate_split = barrel_rate_split
+    recent_hr_rate = float(player_stats.get("recent_hr_rate", player_hr_rate))
+    recent_barrel_rate = float(player_stats.get("recent_barrel_rate", barrel_rate))
 
     power_index = (
         player_hr_rate * 0.38 +

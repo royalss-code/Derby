@@ -474,6 +474,99 @@ def calc_pitcher_split_stats(df):
         "flyball_vs_L": fb_vs_L
     }
 
+def calc_recent_stats(df, recent_days=14):
+    if df.empty or "game_date" not in df.columns:
+        return {
+            "recent_hr_rate": 0.0,
+            "recent_barrel_rate": 0.0
+        }
+
+    temp = df.copy()
+    temp["game_date"] = pd.to_datetime(temp["game_date"], errors="coerce")
+    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=recent_days)
+    recent_df = temp[temp["game_date"] >= cutoff].copy()
+
+    if recent_df.empty:
+        return {
+            "recent_hr_rate": 0.0,
+            "recent_barrel_rate": 0.0
+        }
+
+    recent_hr_rate = calc_hr_rate_per_pa(recent_df)
+    recent_barrel_rate = calc_barrel_like_rate(recent_df)
+
+    return {
+        "recent_hr_rate": round(recent_hr_rate, 4),
+        "recent_barrel_rate": round(recent_barrel_rate, 4)
+    }
+
+def calc_recent_split_stats(df, recent_days=14):
+    if df.empty or "game_date" not in df.columns:
+        return {
+            "recent_hr_rate_vs_R": 0.0,
+            "recent_hr_rate_vs_L": 0.0,
+            "recent_barrel_rate_vs_R": 0.0,
+            "recent_barrel_rate_vs_L": 0.0
+        }
+
+    temp = df.copy()
+    temp["game_date"] = pd.to_datetime(temp["game_date"], errors="coerce")
+    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=recent_days)
+    recent_df = temp[temp["game_date"] >= cutoff].copy()
+
+    if recent_df.empty:
+        return {
+            "recent_hr_rate_vs_R": 0.0,
+            "recent_hr_rate_vs_L": 0.0,
+            "recent_barrel_rate_vs_R": 0.0,
+            "recent_barrel_rate_vs_L": 0.0
+        }
+
+    pa_events = {
+        "single", "double", "triple", "home_run", "walk", "intent_walk",
+        "strikeout", "strikeout_double_play", "hit_by_pitch", "field_out",
+        "grounded_into_double_play", "force_out", "field_error", "double_play",
+        "triple_play", "fielders_choice", "fielders_choice_out", "sac_fly",
+        "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"
+    }
+
+    def calc_side(side):
+        vs = recent_df[recent_df["p_throws"] == side]
+
+        pa = vs[vs["events"].isin(pa_events)]
+        batted_vs = vs[vs["launch_speed"].notna() & vs["launch_angle"].notna()]
+
+        hr_rate = (pa["events"] == "home_run").mean() if not pa.empty else 0.0
+
+        if not batted_vs.empty:
+            ev = pd.to_numeric(batted_vs["launch_speed"], errors="coerce")
+            la = pd.to_numeric(batted_vs["launch_angle"], errors="coerce")
+
+            barrel = (
+                ((ev >= 98) & la.between(26, 30, inclusive="both")) |
+                ((ev >= 99) & la.between(25, 31, inclusive="both")) |
+                ((ev >= 100) & la.between(24, 33, inclusive="both")) |
+                ((ev >= 101) & la.between(23, 34, inclusive="both")) |
+                ((ev >= 102) & la.between(22, 35, inclusive="both")) |
+                ((ev >= 103) & la.between(21, 36, inclusive="both")) |
+                ((ev >= 104) & la.between(20, 37, inclusive="both")) |
+                ((ev >= 105) & la.between(19, 38, inclusive="both"))
+            )
+            barrel_rate = barrel.mean()
+        else:
+            barrel_rate = 0.0
+
+        return round(float(hr_rate), 4), round(float(barrel_rate), 4)
+
+    hr_r, barrel_r = calc_side("R")
+    hr_l, barrel_l = calc_side("L")
+
+    return {
+        "recent_hr_rate_vs_R": hr_r,
+        "recent_hr_rate_vs_L": hr_l,
+        "recent_barrel_rate_vs_R": barrel_r,
+        "recent_barrel_rate_vs_L": barrel_l
+    }
 
 def build_player_stats():
     raw_players = pd.read_csv(RAW_PLAYERS_FILE)
@@ -493,6 +586,12 @@ def build_player_stats():
                     "name": name,
                     "player_hr_rate": 0.0,
                     "barrel_rate": 0.0,
+                    "recent_hr_rate": 0.0,
+                    "recent_barrel_rate": 0.0,
+                    "recent_hr_rate_vs_R": 0.0,
+                    "recent_hr_rate_vs_L": 0.0,
+                    "recent_barrel_rate_vs_R": 0.0,
+                    "recent_barrel_rate_vs_L": 0.0,
                     "hr_vs_R": 0.0,
                     "hr_vs_L": 0.0,
                     "barrel_vs_R": 0.0,
@@ -505,15 +604,23 @@ def build_player_stats():
             hr_rate = calc_hr_rate_per_pa(df)
             barrel_rate = calc_barrel_like_rate(df)
             splits = calc_split_stats(df)
+            recent = calc_recent_stats(df, recent_days=14)
+            recent_splits = calc_recent_split_stats(df, recent_days=14)
 
             rows.append({
                 "name": name,
                 "player_hr_rate": round(hr_rate, 4),
                 "barrel_rate": round(barrel_rate, 4),
+                "recent_hr_rate": recent["recent_hr_rate"],
+                "recent_barrel_rate": recent["recent_barrel_rate"],
                 "hr_vs_R": round(splits["hr_vs_R"], 4),
                 "hr_vs_L": round(splits["hr_vs_L"], 4),
                 "barrel_vs_R": round(splits["barrel_vs_R"], 4),
                 "barrel_vs_L": round(splits["barrel_vs_L"], 4),
+                "recent_hr_rate_vs_R": recent_splits["recent_hr_rate_vs_R"],
+                "recent_hr_rate_vs_L": recent_splits["recent_hr_rate_vs_L"],
+                "recent_barrel_rate_vs_R": recent_splits["recent_barrel_rate_vs_R"],
+                "recent_barrel_rate_vs_L": recent_splits["recent_barrel_rate_vs_L"],
                 "stand": stand,
                 "team": team
             })
@@ -524,6 +631,12 @@ def build_player_stats():
                 "name": name,
                 "player_hr_rate": 0.0,
                 "barrel_rate": 0.0,
+                "recent_hr_rate": 0.0,
+                "recent_barrel_rate": 0.0,
+                "recent_hr_rate_vs_R": 0.0,
+                "recent_hr_rate_vs_L": 0.0,
+                "recent_barrel_rate_vs_R": 0.0,
+                "recent_barrel_rate_vs_L": 0.0,
                 "hr_vs_R": 0.0,
                 "hr_vs_L": 0.0,
                 "barrel_vs_R": 0.0,
