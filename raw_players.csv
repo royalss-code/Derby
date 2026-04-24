@@ -76,8 +76,8 @@ Andres Gimenez,665926,L,Cleveland Guardians
 Logan O'Hoppe,681351,R,Los Angeles Angels
 Mike Trout,545361,R,Los Angeles Angels
 Taylor Ward,621493,R,Los Angeles Angels
-Brent Rooker,667670,R,Oakland Athletics
-JJ Bleday,668709,L,Oakland Athletics
+Brent Rooker,667670,R,Athletics
+JJ Bleday,668709,L,Athletics
 Luis Arraez,650333,L,San Diego Padres
 Jake Burger,669394,R,Miami Marlins
 Xander Bogaerts,593428,R,San Diego Padres
@@ -99,7 +99,7 @@ Heliot Ramos,671218,R,San Francisco Giants
 Jung Hoo Lee,808982,L,San Francisco Giants
 Anthony Volpe,683011,R,New York Yankees
 Giancarlo Stanton,519317,R,New York Yankees
-Nick Kurtz,701762,L,Oakland Athletics
+Nick Kurtz,701762,L,Athletics
 Brice Turang,668930,L,Milwaukee Brewers
 Cal Raleigh,663728,S,Seattle Mariners
 Brandon Lowe,664040,L,Pittsburgh Pirates
@@ -159,3 +159,4 @@ Evan Carter,694497,L,Texas Rangers
 Tristan Gray,656484,L,Minnesota Twins
 Carlos Narváez,665966,R,Boston Red Sox
 Carson Benge,701807,L,New York Mets
+Shea Langeliers,669127,R,Athletics
